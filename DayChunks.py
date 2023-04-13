@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Mar 30 11:45:26 2023
+Created on Thu Apr  6 15:39:09 2023
 
 @author: fitzgeraldj
 """
 
-
+import keras
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 import xgboost as xgb
 import lightgbm as lgb
 import pandas as pd
@@ -17,16 +19,24 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report
+from sklearn.tree import DecisionTreeClassifier
+import matplotlib.pyplot as plt
+from sklearn.model_selection import GridSearchCV
 
-file = '24HrFeatures.csv'
-#file = '4HrFeatures.csv'
+#file = '24HrFeatures.csv'
+file = '4HrFeatures.csv'
 df = pd.read_csv(file)
 
+#options = ['12-16:00','16-20:00']
+	
+# selecting rows based on condition
+#df = df[df['segment'].isin(options)]
+	
 
 #Prepare the data for modeling
-X = df.copy().drop(['id','class','date','Category','counter','patientID'], axis=1)
+X = df.copy().drop(['id','class','date','Category','counter','patientID','segment'], axis=1)
 y = df['class'].copy()
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.18, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
 
 # Scale the continuous variables
 scaler = StandardScaler()
@@ -34,31 +44,38 @@ X_train[['f.mean', 'f.sd', 'f.propZeros']] = scaler.fit_transform(X_train[['f.me
 X_test[['f.mean', 'f.sd', 'f.propZeros']] = scaler.transform(X_test[['f.mean', 'f.sd', 'f.propZeros']])
 
 
-#X_train, X_test, y_train, y_test = train_test_split(X,
-    #                                y, test_size=0.18,
-        #                            stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X,
+                                    y, test_size=0.25,
+                                    random_state=2550, stratify=y)
 
 #Trainingset 10-fold cross validation
 k_fold = StratifiedKFold(n_splits=10,shuffle=True,random_state=2010)
+
 #Create the models:
 
 #-----------------------Light GBM
 
 params = {
-     'boosting': 'dart',
+     #'boosting': 'dart',
      'objective': 'multiclass',
      'metric':'multi_logloss',
      'num_class': 3,
-     'learning_rate': 0.05,
-    # 'num_leaves':127, 
-     #'feature_fraction':0.5,
-     #'bagging_fraction':0.7,
-     'max_depth': 2,    
-     #'n_estimators': 100,
-     'subsample':1,    
-     #'min_child_samples':5,
-     #'min_split_gain':0.8,
-    # 'max_bin':25
+     'learning_rate': 0.1,
+     #'num_iterations': 55,
+     'num_leaves': 5, 
+     'max_depth': 5,
+     #'lambda_l1': 0.01,
+     #'lambda_l2': 0.01,     
+     'n_estimators': 100,
+    # 'min_Data_in_leaf':50,
+     #'feature_fraction': 0.1,
+     'subsample':0.75,    
+     #'bagging_fraction':0.9,
+     'min_child_samples':5,
+     'min_split_gain':0.8,
+     'max_bin':255,
+    # 'dart':10
+     #'early_stopping_rounds':10
  }
 
 # =============================================================================
@@ -180,35 +197,15 @@ print(f"Light GBM Mean accuracy score: {np.mean(accuracy_scores)}")
 
 #----------------- XG Boost 
 
-# =============================================================================
-# params={       
-#         'booster':'gbtree',
-#         'objective': 'multi:softmax',
-#         'eval_metric':'logloss',
-#         'num_class':3,
-#         'max_depth':10,
-#         'learning_rate':0.6,
-#         #'n_estimators':1500,
-#         'subsample':0.9,
-#         'colsample_bytree':0.9,
-#         'min_child_weight': 1,
-#         'gamma':1,
-#         'lambda':0.1,
-#         'alpha':0.1,
-#       #  'max_delta_step':1,
-#        # 'eta':0.1,
-#        # 'colsample_bynode':0.8
-#         }
-# =============================================================================
 params={       
         'booster':'gbtree',
         'objective': 'multi:softmax',
         'eval_metric':'logloss',
         'num_class':3,
         'max_depth':5,
-        'learning_rate':0.8,
-        'n_estimators':3500,
-        'subsample':0.4,
+        'learning_rate':0.2,
+        'n_estimators':1500,
+        'subsample':0.9,
         'colsample_bytree':0.9,
         'min_child_weight': 1,
         'gamma':1,
@@ -218,6 +215,7 @@ params={
         'eta':0.1,
         'colsample_bynode':0.3
         }
+
 
 xgbm = xgb.XGBClassifier(**params)
 
